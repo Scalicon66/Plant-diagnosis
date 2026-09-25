@@ -53,34 +53,55 @@ Important calibration rules:
 
 // TODO 7 ── analyzePlantImage
 // Send a base64-encoded image to Claude and return the parsed diagnosis JSON.
-//
-// Steps:
-// 1. Validate / normalise the mimeType — only 'image/jpeg', 'image/png',
-//    'image/gif', 'image/webp' are accepted by the API; fall back to 'image/jpeg'.
-//
-// 2. Call anthropic.messages.create({
-//      model: 'claude-opus-4-5',
-//      max_tokens: 1024,
-//      messages: [{
-//        role: 'user',
-//        content: [
-//          { type: 'image', source: { type: 'base64', media_type: validMime, data: base64Image } },
-//          { type: 'text',  text: PLANT_DIAGNOSIS_SYSTEM_PROMPT },
-//        ],
-//      }],
-//    })
-//
-// 3. Extract the text from message.content (filter type === 'text', join, trim).
-//
-// 4. Match the first {...} JSON block with /\{[\s\S]*\}/ — throw if none found.
-//
-// 5. JSON.parse and return the result cast as Partial<DiagnosisResult>.
-//    Wrap the parse in try/catch and throw a descriptive error on failure.
 
 export async function analyzePlantImage(
   base64Image: string,
   mimeType: string
 ): Promise<Partial<DiagnosisResult>> {
-  // ✏️  Write your implementation here
-  throw new Error('analyzePlantImage not implemented yet')
+
+// 1. Validate the mimeType is one of the allowed types (jpeg, png, gif, webp). 
+// If not, default to 'image/jpeg'.
+  const validMime = 
+    mimeType === 'image/jpeg' ||
+    mimeType === 'image/png' ||
+    mimeType === 'image/gif' ||
+    mimeType === 'image/webp'
+      ? mimeType
+      : 'image/jpeg';
+
+// 2. Call anthropic.messages.create
+  const response = await anthropic.messages.create({
+    model: 'claude-opus-4-5',
+    max_tokens: 1024,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: validMime, data: base64Image } },
+          { type: 'text', text: PLANT_DIAGNOSIS_SYSTEM_PROMPT },
+        ],
+      },
+    ],
+  });
+
+// 3. Extract the text from message.content (filter type === 'text', join, trim).
+  const text = response.choices[0].message.content
+    .filter((b) => b.type === 'text')
+    .map((b) => (b as { type: 'text'; text: string }).text)
+    .join('')
+    .trim();
+    
+// 4. Match the first {...} JSON block with /\{[\s\S]*\}/ — throw if none found.
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('Claude returned a respond with no JSON object');
+  }
+
+// 5. JSON.parse and return the result cast as Partial<DiagnosisResult>.
+//    Wrap the parse in try/catch and throw a descriptive error on failure.
+  try {
+    return JSON.parse(jsonMatch[0]) as Partial<DiagnosisResult>;
+  } catch {
+    throw new Error(`Failed to parse Claude JSON response: ${text.slice(0, 200)}`);
+  }
 }

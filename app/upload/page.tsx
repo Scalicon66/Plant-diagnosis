@@ -55,8 +55,42 @@ export default function UploadPage() {
   // 5. In catch: setError(message), setLoading(false), reset steps to all 'waiting'
 
   const handleAnalyze = async () => {
-    // ✏️  Write your implementation here
-    setError('handleAnalyze not implemented yet')
+    if (!file) return
+    setError(null)
+    setLoading(true)
+    setSteps(['active', 'waiting', 'waiting'])
+
+    try {
+      // STEP 1 — Upload
+      const form = new FormData()
+      form.append('image', file)
+      const uploadRes = await fetch('/api/upload', { method: 'POST', body: form })
+      const uploadData = await uploadRes.json()
+      if (!uploadRes.ok || !uploadData.success) {
+        throw new Error(uploadData.error ?? 'Upload failed')
+      }
+      setStep(0, 'complete')
+      setStep(1, 'active')
+
+      // STEP 2 — Diagnose
+      const diagnoseRes = await fetch('/api/diagnose', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: uploadData.image_url, diagnosis_id: uploadData.diagnosis_id }),
+      })
+      const diagnoseData = await diagnoseRes.json()
+      if (!diagnoseRes.ok) {
+        throw new Error(diagnoseData.error ?? 'Diagnosis failed')
+      }
+      setStep(1, 'complete')
+      setStep(2, 'active')
+      await new Promise((r) => setTimeout(r, 500))
+      router.push(`/results/${uploadData.diagnosis_id}`) 
+    } catch (err) { 
+      setError(err instanceof Error ? err.message : 'Unknown error')
+      setLoading(false)
+      setSteps(['waiting', 'waiting', 'waiting'])
+    }
   }
 
   return (

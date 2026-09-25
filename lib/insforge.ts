@@ -31,8 +31,11 @@ export default insforge
 //   3. Return result cast as DiagnosisResult
 
 export async function saveDiagnosis(data: Partial<DiagnosisResult>): Promise<DiagnosisResult> {
-  // ✏️  Write your implementation here
-  throw new Error('saveDiagnosis not implemented yet')
+  const { data: result, error } = await insforge.database.from('diagnoses').insert(data).select().single();
+  if (error) {
+    throw new Error(`Failed to save diagnosis: ${error.message}`);
+  }
+  return result as DiagnosisResult;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,8 +47,11 @@ export async function saveDiagnosis(data: Partial<DiagnosisResult>): Promise<Dia
 //   2. Throw on error, return cast result
 
 export async function updateDiagnosis(id: string, data: Partial<DiagnosisResult>): Promise<DiagnosisResult> {
-  // ✏️  Write your implementation here
-  throw new Error('updateDiagnosis not implemented yet')
+  const { data: result, error } = await insforge.database.from('diagnoses').update(data).eq('id', id).select().single();
+  if (error) {
+    throw new Error(`Failed to update diagnosis: ${error.message}`);
+  }
+  return result as DiagnosisResult;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,8 +63,14 @@ export async function updateDiagnosis(id: string, data: Partial<DiagnosisResult>
 //   2. Throw if error or no result
 
 export async function getDiagnosis(id: string): Promise<DiagnosisResult> {
-  // ✏️  Write your implementation here
-  throw new Error('getDiagnosis not implemented yet')
+  const { data: result, error } = await insforge.database.from('diagnoses').select().eq('id', id).single();
+  if (error) {
+    throw new Error(`Failed to fetch diagnosis: ${error.message}`);
+  }
+  if (!result) {
+    throw new Error(`Diagnosis with id ${id} not found`);
+  }
+  return result as DiagnosisResult;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -71,8 +83,13 @@ export async function getDiagnosis(id: string): Promise<DiagnosisResult> {
 //   2. Throw on error, return (results ?? []) cast as DiagnosisResult[]
 
 export async function getDiagnosisHistory(limit = 20): Promise<DiagnosisResult[]> {
-  // ✏️  Write your implementation here
-  throw new Error('getDiagnosisHistory not implemented yet')
+  const { data: results, error } = await insforge.database.from('diagnoses').select()
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    throw new Error(`Failed to fetch diagnosis history: ${error.message}`);
+  }
+  return (results ?? []) as DiagnosisResult[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,6 +102,20 @@ export async function getDiagnosisHistory(limit = 20): Promise<DiagnosisResult[]
 //   3. Throw on error or missing data.url, return data.url
 
 export async function uploadImageToStorage(file: Buffer | Blob, filename: string): Promise<string> {
-  // ✏️  Write your implementation here
-  throw new Error('uploadImageToStorage not implemented yet')
+  let blob: Blob;
+  if(buffer.isBuffer(file)) {
+    const copy = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
+    blob = new Blob([copy]);
+  } else {
+    blob = file;
+  }
+
+  const { data, error } = await insforge.storage.from('plant-images').upload(filename, blob);
+  if (error) {
+    throw new Error(`Failed to upload image: ${error.message}`);
+  }
+  if (!data?.url) {
+    throw new Error('Upload succeeded but no URL returned');
+  }
+  return data.url;
 }

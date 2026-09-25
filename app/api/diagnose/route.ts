@@ -28,43 +28,43 @@ export async function POST(request: NextRequest) {
 
   try {
     // TODO 14 ── Parse the JSON body
-    // const body = await request.json()
-    // const { image_url, diagnosis_id: id } = body as { image_url?: string; diagnosis_id?: string }
-    // If either is missing → return 400
-    // Set diagnosis_id = id so the catch block can mark it as 'error'
-
-    // ✏️  Write your JSON parsing and validation here
+    const body = await request.json()
+    const { image_url, diagnosis_id: id } = body as { image_url?: string; diagnosis_id?: string }
+    if(!image_url || !id) {
+      return Response.json(
+        { error: 'Missing image_url or diagnosis_id' }, 
+        { status: 400 }
+      )
+    }
+    diagnosis_id = id
 
     // TODO 15 ── Set up a 25-second timeout race
-    // const timeoutPromise = new Promise<never>((_, reject) =>
-    //   setTimeout(() => reject(new Error('TIMEOUT')), 25000)
-    // )
-
-    // ✏️  Write your timeout promise here
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Analysis timed out. Please try again.')), 25000)
+    )
 
     // TODO 16 ── Build the analysis promise
-    // This async function should:
-    //   1. fetch(image_url) and check response.ok
-    //   2. Convert arrayBuffer → base64 string using Buffer.from(...).toString('base64')
-    //   3. Get the mimeType with getMimeFromUrl(image_url)
-    //   4. Return analyzePlantImage(base64, mimeType)
-    //
-    // const analysisPromise = async () => { ... }
+    const analysisPromise = async () => {
+      // 1. Fetch the image from `image_url` and convert to base64
+      const imageResponse = await fetch(image_url)
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image: ${imageResponse.statusText}`)
+      }
+      const arrayBuffer = await imageResponse.arrayBuffer()
+      const base64 = Buffer.from(arrayBuffer).toString('base64')
+      const mimeType = getMimeFromUrl(image_url) 
 
-    // ✏️  Write your analysis promise here
+      // 2. Call analyzePlantImage(base64, mimeType)
+      return analyzePlantImage(base64, mimeType)
+    }
 
     // TODO 17 ── Race the analysis against the timeout
-    // const analysisResult = await Promise.race([analysisPromise(), timeoutPromise])
-
-    // ✏️  Write your Promise.race here
+    const analysisResult = await Promise.race([analysisPromise(), timeoutPromise])
 
     // TODO 18 ── Update the diagnosis row to 'complete'
-    // const updated = await updateDiagnosis(id, { ...analysisResult, status: 'complete' })
-    // return Response.json(updated)
-
-    // ✏️  Write your database update and return here
-
-    return Response.json({ error: 'Route not implemented yet' }, { status: 501 })
+    const updated = await updateDiagnosis(id, { ...analysisResult, status: 'complete' })
+    return Response.json(updated)
+    
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     console.error('[diagnose route]', message)
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (message === 'TIMEOUT') {
+    if (message === 'Analysis timed out. Please try again.') {
       return Response.json({ error: 'Analysis timed out. Please try again.' }, { status: 504 })
     }
 
