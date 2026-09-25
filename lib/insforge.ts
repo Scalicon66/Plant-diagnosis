@@ -103,7 +103,7 @@ export async function getDiagnosisHistory(limit = 20): Promise<DiagnosisResult[]
 
 export async function uploadImageToStorage(file: Buffer | Blob, filename: string): Promise<string> {
   let blob: Blob;
-  if(buffer.isBuffer(file)) {
+  if(Buffer.isBuffer(file)) {
     const copy = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
     blob = new Blob([copy]);
   } else {
