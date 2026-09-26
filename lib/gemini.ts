@@ -72,31 +72,48 @@ export async function analyzePlantImage(
       ? mimeType
       : 'image/jpeg';
 
-  // 2. Call Google AI Studio Gemini API (gemini-2.0-flash model)
-  // Gemini 2.0 Flash is Google's latest high-speed, multimodal Flash model.
+  // 2. Call Google AI Studio Gemini API (gemini-3.8-flash model)
   const ai = getGenAIClient();
-  const response = await ai.models.generateContent({
-    model: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
-    contents: [
-      {
-        role: 'user',
-        parts: [
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+  const fallbackModels = [primaryModel, 'gemini-3.8-flash', 'gemini-1.5-flash'];
+  
+  let response;
+  let lastError: Error | null = null;
+
+  for (const modelName of Array.from(new Set(fallbackModels))) {
+    try {
+      response = await ai.models.generateContent({
+        model: modelName,
+        contents: [
           {
-            inlineData: {
-              mimeType: validMime,
-              data: base64Image,
-            },
-          },
-          {
-            text: PLANT_DIAGNOSIS_SYSTEM_PROMPT,
+            role: 'user',
+            parts: [
+              {
+                inlineData: {
+                  mimeType: validMime,
+                  data: base64Image,
+                },
+              },
+              {
+                text: PLANT_DIAGNOSIS_SYSTEM_PROMPT,
+              },
+            ],
           },
         ],
-      },
-    ],
-    config: {
-      responseMimeType: 'application/json',
-    },
-  });
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
+      if (response?.text) break;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.warn(`[Gemini API] Failed with model ${modelName}:`, lastError.message);
+    }
+  }
+
+  if (!response) {
+    throw lastError || new Error('Failed to generate content with Gemini API');
+  }
 
   // 3. Extract text output from response
   const text = response.text?.trim() || '';

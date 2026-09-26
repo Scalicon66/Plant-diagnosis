@@ -103,19 +103,40 @@ export async function getDiagnosisHistory(limit = 20): Promise<DiagnosisResult[]
 
 export async function uploadImageToStorage(file: Buffer | Blob, filename: string): Promise<string> {
   let blob: Blob;
-  if(Buffer.isBuffer(file)) {
+  if (Buffer.isBuffer(file)) {
     const copy = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
     blob = new Blob([copy]);
   } else {
     blob = file;
   }
 
-  const { data, error } = await insforge.storage.from('plant-images').upload(filename, blob);
-  if (error) {
-    throw new Error(`Failed to upload image: ${error.message}`);
+  try {
+    const { data, error } = await insforge.storage.from('plant-images').upload(filename, blob);
+    if (!error && data?.url) {
+      return data.url;
+    }
+    console.warn('[uploadImageToStorage] Storage upload returned error, using Data URL fallback:', error?.message);
+  } catch (err) {
+    console.warn('[uploadImageToStorage] Storage upload exception, using Data URL fallback:', err);
   }
-  if (!data?.url) {
-    throw new Error('Upload succeeded but no URL returned');
+
+  // Fallback to Data URL if storage bucket upload is denied or unavailable
+  let type = blob.type || 'image/jpeg';
+  if (type === 'application/octet-stream' || !type) {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    if (ext === 'png') type = 'image/png';
+    else if (ext === 'webp') type = 'image/webp';
+    else if (ext === 'heic') type = 'image/heic';
+    else type = 'image/jpeg';
   }
-  return data.url;
+
+  let base64: string;
+  if (Buffer.isBuffer(file)) {
+    base64 = file.toString('base64');
+  } else {
+    const arrayBuffer = await blob.arrayBuffer();
+    base64 = Buffer.from(arrayBuffer).toString('base64');
+  }
+
+  return `data:${type};base64,${base64}`;
 }

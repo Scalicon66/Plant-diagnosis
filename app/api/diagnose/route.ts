@@ -45,14 +45,26 @@ export async function POST(request: NextRequest) {
 
     // TODO 16 ── Build the analysis promise
     const analysisPromise = async () => {
-      // 1. Fetch the image from `image_url` and convert to base64
-      const imageResponse = await fetch(image_url)
-      if (!imageResponse.ok) {
-        throw new Error(`Failed to fetch image: ${imageResponse.statusText}`)
-      }
-      const arrayBuffer = await imageResponse.arrayBuffer()
-      const base64 = Buffer.from(arrayBuffer).toString('base64')
-      const mimeType = getMimeFromUrl(image_url) 
+      // 1. Convert image_url to base64 and mimeType
+      let base64: string;
+      let mimeType: string;
+
+      if (image_url.startsWith('data:')) {
+        const matches = image_url.match(/^data:(.*?);base64,(.*)$/);
+        if (!matches || matches.length < 3) {
+          throw new Error('Invalid image Data URL format');
+        }
+        mimeType = matches[1];
+        base64 = matches[2];
+      } else {
+        const imageResponse = await fetch(image_url);
+        if (!imageResponse.ok) {
+          throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
+        }
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        base64 = Buffer.from(arrayBuffer).toString('base64');
+        mimeType = getMimeFromUrl(image_url);
+      } 
 
       // 2. Call analyzePlantImage(base64, mimeType)
       return analyzePlantImage(base64, mimeType)
